@@ -16,16 +16,19 @@ const E2EServiceLabel = "e2etesting"
 
 // CleanTestServices removes all services with the E2EServiceLabel
 func CleanTestServices(ctx context.Context, cli *client.Client) error {
+	// create a new filter for our test label
 	f := filters.NewArgs()
 	f.Add("label", E2EServiceLabel)
 	opts := types.ServiceListOptions{
 		Filter: f,
 	}
+	// get the services with that label
 	services, err := cli.ServiceList(ctx, opts)
 	if err != nil {
 		return err
 	}
 
+	// delete all of them
 	for _, service := range services {
 		cli.ServiceRemove(ctx, service.ID)
 	}
@@ -79,3 +82,22 @@ func waitForConverge(ctx context.Context, poll time.Duration, test func() error)
 
 	return err
 }
+
+// GetServiceTasks returns all of the tasks associated with a the service
+func GetServiceTasks(ctx context.Context, cli *client.Client, serviceID string) ([]swarm.Task, error) {
+	filterArgs := filters.NewArgs()
+	// all of the tasks that we want to be running
+	filterArgs.Add("desired-state", "running")
+	// on the service we're requesting
+	filterArgs.Add("service", serviceID)
+	return cli.TaskList(ctx, types.TaskListOptions{Filter: filterArgs})
+}
+
+// ServiceScale scales a service to the provided number
+/*
+func ServiceScale(ctx context.Context, cli *client.Client, serviceID string, replicas uint64) (serviceID, error) {
+	service, _, err = cli.ServiceInspectWithRaw(ctx, serviceID)
+	spec := service.Spec
+	spec.Mode.Replicated.Replicas = &replicas
+}
+*/
