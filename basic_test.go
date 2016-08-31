@@ -2,13 +2,12 @@ package dockere2e
 
 import (
 	// basic testing
+	"flag"
+	"os"
 	"testing"
 
 	"context"
-	"fmt"
 	"time"
-
-	"github.com/pkg/errors"
 
 	// assertions are nice, let's do more of those
 	"github.com/stretchr/testify/assert"
@@ -16,39 +15,24 @@ import (
 	// Engine API imports for talking to the docker engine
 	"github.com/docker/engine-api/client"
 	"github.com/docker/engine-api/types"
-	"github.com/docker/engine-api/types/swarm"
 )
 
-// waitForConverge does test every poll
-// returns nothing if test returns nothing, or test's error after context is done
-//
-// make sure that context is either canceled or given a timeout; if it isn't,
-// test will run until half life 3 is released.
-func waitForConverge(ctx context.Context, poll time.Duration, test func() error) error {
-	var err error
-	// create a ticker and a timer
-	r := time.NewTicker(poll)
-	// don't forget to close this thing
-	// do we have to close this thing? idk
-	defer r.Stop()
+func TestMain(m *testing.M) {
+	// gotta call this at the start or NONE of the flags work
+	flag.Parse()
 
-	for {
-		select {
-		case <-r.C:
-			// do test, save the error
-			fmt.Println("polling")
-			err = test()
-		case <-ctx.Done():
-			// if the timer fires, just return whatever our last error was
-			return errors.Wrap(err, "failed to converge")
-		}
-		// if there is no error, we're done
-		if err == nil {
-			return nil
-		}
+	// we need a client
+	defaultHeaders := map[string]string{"User-Agent": "engine-api-cli-1.0"}
+	cli, err := client.NewClient("unix:///var/run/docker.sock", "v1.22", nil, defaultHeaders)
+	if err != nil {
+		os.Exit(1)
 	}
 
-	return err
+	exit := m.Run()
+	// clean up the testing services we create before we wrap up
+	CleanTestServices(context.Background(), cli)
+	// and then bow out
+	os.Exit(exit)
 }
 
 func TestServiceList(t *testing.T) {
@@ -68,15 +52,7 @@ func TestServiceCreate(t *testing.T) {
 	cli, err := client.NewClient("unix:///var/run/docker.sock", "v1.22", nil, defaultHeaders)
 
 	assert.NoError(t, err, "Client creation failed")
-	var replicas uint64 = 3
-	serviceSpec := swarm.ServiceSpec{
-		TaskTemplate: swarm.TaskSpec{
-			ContainerSpec: swarm.ContainerSpec{
-				Image: "nginx",
-			},
-		},
-		Mode: swarm.ServiceMode{Replicated: &swarm.ReplicatedService{Replicas: &replicas}},
-	}
+	serviceSpec := CannedServiceSpec("test", 3)
 
 	// first, verify that the server responds as expected
 	resp, err := cli.ServiceCreate(context.Background(), serviceSpec, types.ServiceCreateOptions{})
@@ -86,17 +62,12 @@ func TestServiceCreate(t *testing.T) {
 
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	err = waitForConverge(ctx, 2*time.Second, func() error {
-		fmt.Println("succeed")
+		_, _, err := cli.ServiceInspectWithRaw(ctx, resp.ID)
+		if err != nil {
+			return err
+		}
 		return nil
 	})
 
 	assert.NoError(t, err)
-
-	ctx, _ = context.WithTimeout(context.Background(), 10*time.Second)
-	err = waitForConverge(ctx, 2*time.Second, func() error {
-		fmt.Println("just wait")
-		return errors.New("just fail")
-	})
-
-	assert.Error(t, err)
 }
