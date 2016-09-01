@@ -14,11 +14,10 @@ import (
 
 const E2EServiceLabel = "e2etesting"
 
-// CleanTestServices removes all services with the E2EServiceLabel
-func CleanTestServices(ctx context.Context, cli *client.Client) error {
+// CleanTestServices removes all services with labels
+func CleanTestServices(ctx context.Context, cli *client.Client, labels ...string) error {
 	// create a new filter for our test label
-	f := filters.NewArgs()
-	f.Add("label", E2EServiceLabel)
+	f := GetTestFilter(labels...)
 	opts := types.ServiceListOptions{
 		Filter: f,
 	}
@@ -37,19 +36,28 @@ func CleanTestServices(ctx context.Context, cli *client.Client) error {
 }
 
 // CannedServiceSpec returns a ready-to-go service spec with name and replicas
-func CannedServiceSpec(name string, replicas uint64) swarm.ServiceSpec {
-	return swarm.ServiceSpec{
+func CannedServiceSpec(name string, replicas uint64, labels ...string) swarm.ServiceSpec {
+	// first create the canned spec
+	spec := swarm.ServiceSpec{
 		Annotations: swarm.Annotations{
-			Name:   "name",
+			Name:   name,
 			Labels: map[string]string{E2EServiceLabel: "true"},
 		},
 		TaskTemplate: swarm.TaskSpec{
 			ContainerSpec: swarm.ContainerSpec{
-				Image: "nginx",
+				Image:   "alpine",
+				Command: []string{"ping", "localhost"},
 			},
 		},
 		Mode: swarm.ServiceMode{Replicated: &swarm.ReplicatedService{Replicas: &replicas}},
 	}
+
+	// then, add labels
+	for _, label := range labels {
+		spec.Annotations.Labels[label] = ""
+	}
+
+	return spec
 }
 
 // waitForConverge does test every poll
@@ -72,7 +80,7 @@ func waitForConverge(ctx context.Context, poll time.Duration, test func() error)
 			err = test()
 		case <-ctx.Done():
 			// if the timer fires, just return whatever our last error was
-			return errors.Wrap(err, "failed to converge")
+			return errors.Wrap(err, "timeout, failed to converge")
 		}
 		// if there is no error, we're done
 		if err == nil {
@@ -85,12 +93,25 @@ func waitForConverge(ctx context.Context, poll time.Duration, test func() error)
 
 // GetServiceTasks returns all of the tasks associated with a the service
 func GetServiceTasks(ctx context.Context, cli *client.Client, serviceID string) ([]swarm.Task, error) {
-	filterArgs := filters.NewArgs()
+	// get the default filter
+	filterArgs := GetTestFilter()
 	// all of the tasks that we want to be running
 	filterArgs.Add("desired-state", "running")
 	// on the service we're requesting
 	filterArgs.Add("service", serviceID)
 	return cli.TaskList(ctx, types.TaskListOptions{Filter: filterArgs})
+}
+
+// GetTestFilter creates a default filter for labels
+// Always adds the E2EServiceLabel, plus some user-defined labels.
+// if you need more fitlers, add them to the returned value.
+func GetTestFilter(labels ...string) filters.Args {
+	filterArgs := filters.NewArgs()
+	filterArgs.Add("label", E2EServiceLabel)
+	for _, l := range labels {
+		filterArgs.Add("label", l)
+	}
+	return filterArgs
 }
 
 // ServiceScale scales a service to the provided number
