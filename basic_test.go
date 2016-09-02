@@ -1,17 +1,17 @@
 package dockere2e
 
 import (
-	// basic testing
+	// basic imports
+	"context"
 	"flag"
+	"fmt"
 	"os"
 	"testing"
-
-	"context"
 	"time"
 
 	// assertions are nice, let's do more of those
 	"github.com/stretchr/testify/assert"
-	// errors gives us some dead simple bonus error handling
+	// errors gives us Wrap which is really useful
 	"github.com/pkg/errors"
 
 	// Engine API imports for talking to the docker engine
@@ -107,8 +107,8 @@ func TestServicesScale(t *testing.T) {
 				return err
 			}
 			// check for correct number of tasks
-			if len(tasks) != replicas {
-				return errors.New("wrong number of tasks")
+			if t := len(tasks); t != replicas {
+				return fmt.Errorf("wrong number of tasks, got %v expected %v", t, replicas)
 			}
 			for _, task := range tasks {
 				if task.Status.State != swarm.TaskStateRunning {

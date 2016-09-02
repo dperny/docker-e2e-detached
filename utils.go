@@ -14,7 +14,7 @@ import (
 
 const E2EServiceLabel = "e2etesting"
 
-// CleanTestServices removes all services with labels
+// CleanTestServices removes all e2etesting services with the specified labels
 func CleanTestServices(ctx context.Context, cli *client.Client, labels ...string) error {
 	// create a new filter for our test label
 	f := GetTestFilter(labels...)
@@ -70,18 +70,18 @@ func CannedServiceSpec(name string, replicas uint64, labels ...string) swarm.Ser
 // context's cancel func from inside the test can be used to abort the test
 // before the timeout
 func WaitForConverge(ctx context.Context, poll time.Duration, test func() error) error {
-	var err error
 	// create a ticker and a timer
 	r := time.NewTicker(poll)
 	// don't forget to close this thing
 	// do we have to close this thing? idk
 	defer r.Stop()
 
+	var err error
 	for {
 		select {
 		case <-ctx.Done():
-			// if the timer fires, just return whatever our last error was
-			return errors.Wrap(err, "timeout, failed to converge")
+			// if the context is done, just return whatever our last error was
+			return errors.Wrap(err, "failed to converge")
 		case <-r.C:
 			// do test, save the error
 			err = test()
@@ -91,8 +91,6 @@ func WaitForConverge(ctx context.Context, poll time.Duration, test func() error)
 			return nil
 		}
 	}
-
-	return err
 }
 
 // GetServiceTasks returns all of the tasks associated with a the service
