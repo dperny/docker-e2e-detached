@@ -60,12 +60,16 @@ func CannedServiceSpec(name string, replicas uint64, labels ...string) swarm.Ser
 	return spec
 }
 
-// waitForConverge does test every poll
+// WaitForConverge does test every poll
 // returns nothing if test returns nothing, or test's error after context is done
 //
 // make sure that context is either canceled or given a timeout; if it isn't,
 // test will run until half life 3 is released.
-func waitForConverge(ctx context.Context, poll time.Duration, test func() error) error {
+//
+// if an irrecoverable error is noticed during the test function, calling the
+// context's cancel func from inside the test can be used to abort the test
+// before the timeout
+func WaitForConverge(ctx context.Context, poll time.Duration, test func() error) error {
 	var err error
 	// create a ticker and a timer
 	r := time.NewTicker(poll)
@@ -75,12 +79,12 @@ func waitForConverge(ctx context.Context, poll time.Duration, test func() error)
 
 	for {
 		select {
-		case <-r.C:
-			// do test, save the error
-			err = test()
 		case <-ctx.Done():
 			// if the timer fires, just return whatever our last error was
 			return errors.Wrap(err, "timeout, failed to converge")
+		case <-r.C:
+			// do test, save the error
+			err = test()
 		}
 		// if there is no error, we're done
 		if err == nil {

@@ -72,7 +72,7 @@ func TestServicesCreate(t *testing.T) {
 
 	// now make sure we can call back and get the service
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-	err = waitForConverge(ctx, 2*time.Second, func() error {
+	err = WaitForConverge(ctx, 2*time.Second, func() error {
 		_, _, err := cli.ServiceInspectWithRaw(ctx, resp.ID)
 		if err != nil {
 			return err
@@ -121,7 +121,7 @@ func TestServicesScale(t *testing.T) {
 
 	// check that it converges to 1 replica
 	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
-	err = waitForConverge(ctx, 2*time.Second, scaleCheck(ctx, 1))
+	err = WaitForConverge(ctx, 2*time.Second, scaleCheck(ctx, 1))
 	assert.NoError(t, err)
 
 	// get the full spec to make changes
@@ -136,7 +136,7 @@ func TestServicesScale(t *testing.T) {
 
 	// check that it converges to 3 replicas
 	ctx, _ = context.WithTimeout(context.Background(), 30*time.Second)
-	err = waitForConverge(ctx, 2*time.Second, scaleCheck(ctx, 3))
+	err = WaitForConverge(ctx, 2*time.Second, scaleCheck(ctx, 3))
 	assert.NoError(t, err)
 
 	// clean up after
