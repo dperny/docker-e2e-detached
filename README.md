@@ -9,9 +9,11 @@ Building the Tests
 ------------------
 The tests require go version 1.7+
 
+To compile the tests to a static binary, use `go test -c`.
+
 Running the Tests
 -----------------
 Tests are built with the go test framework, and as such, running `go test` in 
-the project root will run the tests.
+the project root will run the tests. 
 
 The tests must be run on a Docker Swarm Mode manager node.
