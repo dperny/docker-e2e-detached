@@ -80,7 +80,7 @@ func WaitForConverge(ctx context.Context, poll time.Duration, test func() error)
 	for {
 		select {
 		case <-ctx.Done():
-			// if the context is done, just return whatever our last error was
+			// if the context is done, just return whatever our last saved error was
 			return errors.Wrap(err, "failed to converge")
 		case <-r.C:
 			// do test, save the error

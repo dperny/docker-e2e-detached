@@ -47,21 +47,24 @@ func TestServicesList(t *testing.T) {
 
 	assert.NoError(t, err, "Client creation failed")
 
+	// list all services with the "TestServiceList" label
 	opts := types.ServiceListOptions{Filter: GetTestFilter("TestServiceList")}
 	services, err := cli.ServiceList(context.Background(), opts)
+	// there shouldn't be any services with that label
 	assert.NoError(t, err, "error listing service")
 	assert.Empty(t, services)
 }
 
 func TestServicesCreate(t *testing.T) {
 	t.Parallel()
-	// name for cleanup later
+	// label name for cleanup later
 	name := "TestServicesCreate"
 
 	defaultHeaders := map[string]string{"User-Agent": "engine-api-cli-1.0"}
 	cli, err := client.NewClient("unix:///var/run/docker.sock", "v1.22", nil, defaultHeaders)
 
 	assert.NoError(t, err, "Client creation failed")
+	// create a spec for a task named TestServicesCreate labeled the same, with 3 replicas
 	serviceSpec := CannedServiceSpec(name, 3, name)
 
 	// first, verify that the server responds as expected
@@ -81,7 +84,7 @@ func TestServicesCreate(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	// clean up our services
+	// clean up our service
 	CleanTestServices(context.Background(), cli, name)
 }
 
@@ -102,6 +105,7 @@ func TestServicesScale(t *testing.T) {
 	// TODO(dperny) abstract this into a standalone function?
 	scaleCheck := func(ctx context.Context, replicas int) func() error {
 		return func() error {
+			// get all of the tasks for the service
 			tasks, err := GetServiceTasks(ctx, cli, service.ID)
 			if err != nil {
 				return err
@@ -110,11 +114,13 @@ func TestServicesScale(t *testing.T) {
 			if t := len(tasks); t != replicas {
 				return fmt.Errorf("wrong number of tasks, got %v expected %v", t, replicas)
 			}
+			// verify that all tasks are in the RUNNING state
 			for _, task := range tasks {
 				if task.Status.State != swarm.TaskStateRunning {
 					return errors.New("a task is not yet running")
 				}
 			}
+			// if all of the above checks out, service has converged
 			return nil
 		}
 	}
@@ -129,7 +135,7 @@ func TestServicesScale(t *testing.T) {
 	// more replicas
 	var replicas uint64 = 3
 	full.Spec.Mode.Replicated.Replicas = &replicas
-	// increment version
+	// send the update
 	version := full.Meta.Version
 	err = cli.ServiceUpdate(context.Background(), service.ID, version, full.Spec, types.ServiceUpdateOptions{})
 	assert.NoError(t, err)
