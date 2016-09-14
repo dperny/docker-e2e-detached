@@ -1,0 +1,15 @@
+syntax="proto3";
+
+// compile with "protoc --go_out=plugins=grpc:. control_server.proto
+
+service Controller {
+  rpc ExchangeMessages(stream Heartbeat) returns (stream Command) {}
+}
+
+message Heartbeat {
+  string id = 1;
+}
+
+message Command {
+  string action = 1;
+}
