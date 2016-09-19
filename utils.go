@@ -2,14 +2,15 @@ package dockere2e
 
 import (
 	"context"
+	// "strings"
 	"time"
 
 	"github.com/pkg/errors"
 
-	"github.com/docker/engine-api/client"
-	"github.com/docker/engine-api/types"
-	"github.com/docker/engine-api/types/filters"
-	"github.com/docker/engine-api/types/swarm"
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/api/types/swarm"
+	"github.com/docker/docker/client"
 )
 
 const E2EServiceLabel = "e2etesting"
@@ -85,6 +86,18 @@ func WaitForConverge(ctx context.Context, poll time.Duration, test func() error)
 		case <-r.C:
 			// do test, save the error
 			err = test()
+			// TODO(dperny) ughhhhhhhhhhhhhhhhhhhhh
+			// if the context times out during a call to the docker api, we
+			// will get context deadline exceeded which could mask the real
+			// error. in this case, if we already have an error, discard the
+			// the deadline exceeded error
+			/*
+				if err == nil ||
+					terr == nil ||
+					(terr != nil && !strings.Contains(terr.Error(), "context deadline exceeded")) {
+					err = terr
+				}
+			*/
 		}
 		// if there is no error, we're done
 		if err == nil {

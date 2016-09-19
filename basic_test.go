@@ -15,9 +15,9 @@ import (
 	"github.com/pkg/errors"
 
 	// Engine API imports for talking to the docker engine
-	"github.com/docker/engine-api/client"
-	"github.com/docker/engine-api/types"
-	"github.com/docker/engine-api/types/swarm"
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/swarm"
+	"github.com/docker/docker/client"
 )
 
 func TestMain(m *testing.M) {
