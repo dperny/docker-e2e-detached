@@ -108,9 +108,11 @@ func TestNetworkExternalLb(t *testing.T) {
 					// lock the mutex to synchronize access to the map
 					mu.Lock()
 					defer mu.Unlock()
+					tr := &http.Transport{}
+					client := &http.Client{Transport: tr}
 
 					// poll the endpoint
-					resp, err := http.Get("http://127.0.0.1:8080")
+					resp, err := client.Get("http://127.0.0.1:8080")
 					if err != nil {
 						// TODO(dperny) properly handle error
 						// fmt.Printf("error: %v", err)
@@ -136,6 +138,9 @@ func TestNetworkExternalLb(t *testing.T) {
 						containers[name] = 1
 					}
 				}()
+				// if we don't sleep, we'll starve the check function. we stop
+				// just long enough for the system to schedule the check function
+				// TODO(dperny): figure out a cleaner way to do this.
 				time.Sleep(5 * time.Millisecond)
 			}
 		}
