@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -34,7 +35,7 @@ func TestNetworkExternalLb(t *testing.T) {
 	replicas := 3
 	spec := CannedServiceSpec(name, 3, name)
 	// use nginx
-	spec.TaskTemplate.ContainerSpec.Image = "zembutsu/docker-sample-nginx"
+	spec.TaskTemplate.ContainerSpec.Image = "dperny/docker-sample-nginx"
 	spec.TaskTemplate.ContainerSpec.Command = nil
 	// expose a port
 	spec.EndpointSpec = &swarm.EndpointSpec{
@@ -124,7 +125,7 @@ func TestNetworkExternalLb(t *testing.T) {
 						// TODO(dperny) properly handle error
 						return
 					}
-					name := string(namebytes)
+					name := strings.TrimSpace(string(namebytes))
 					// fmt.Printf("saw container: %v\n", name)
 
 					// if the container has already been seen, increment its count
@@ -170,7 +171,7 @@ func TestNetworkExternalLb(t *testing.T) {
 	// cancel the context to stop polling
 	cancel()
 
-	// fmt.Printf("saw these containers like this: %v", containers)
+	// fmt.Printf("saw these containers like this: %v\n", containers)
 
 	assert.NoError(t, err)
 
