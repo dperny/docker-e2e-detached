@@ -19,7 +19,6 @@ import (
 	// docker api
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/swarm"
-	"github.com/docker/docker/client"
 )
 
 // tests the load balancer for services with public endpoints
@@ -28,8 +27,7 @@ func TestNetworkExternalLb(t *testing.T) {
 	t.Parallel()
 	name := "TestNetworkExternalLb"
 	// create a client
-	defaultHeaders := map[string]string{"User-Agent": "engine-api-cli-1.0"}
-	cli, err := client.NewClient("unix:///var/run/docker.sock", "v1.22", nil, defaultHeaders)
+	cli, err := GetClient()
 	assert.NoError(t, err, "Client creation failed")
 
 	replicas := 3

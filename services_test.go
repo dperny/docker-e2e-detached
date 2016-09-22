@@ -3,9 +3,7 @@ package dockere2e
 import (
 	// basic imports
 	"context"
-	"flag"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -17,33 +15,11 @@ import (
 	// Engine API imports for talking to the docker engine
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/swarm"
-	"github.com/docker/docker/client"
 )
-
-func TestMain(m *testing.M) {
-	// gotta call this at the start or NONE of the flags work
-	flag.Parse()
-
-	// we need a client
-	defaultHeaders := map[string]string{"User-Agent": "engine-api-cli-1.0"}
-	cli, err := client.NewClient("unix:///var/run/docker.sock", "v1.22", nil, defaultHeaders)
-	if err != nil {
-		os.Exit(1)
-	}
-
-	// clean up the testing services that might have existed before we start
-	CleanTestServices(context.Background(), cli)
-
-	// run the tests, save the exit code
-	exit := m.Run()
-	// and then bow out
-	os.Exit(exit)
-}
 
 func TestServicesList(t *testing.T) {
 	t.Parallel()
-	defaultHeaders := map[string]string{"User-Agent": "engine-api-cli-1.0"}
-	cli, err := client.NewClient("unix:///var/run/docker.sock", "v1.22", nil, defaultHeaders)
+	cli, err := GetClient()
 
 	assert.NoError(t, err, "Client creation failed")
 
@@ -60,8 +36,7 @@ func TestServicesCreate(t *testing.T) {
 	// label name for cleanup later
 	name := "TestServicesCreate"
 
-	defaultHeaders := map[string]string{"User-Agent": "engine-api-cli-1.0"}
-	cli, err := client.NewClient("unix:///var/run/docker.sock", "v1.22", nil, defaultHeaders)
+	cli, err := GetClient()
 
 	assert.NoError(t, err, "Client creation failed")
 	// create a spec for a task named TestServicesCreate labeled the same, with 3 replicas
@@ -92,8 +67,7 @@ func TestServicesScale(t *testing.T) {
 	t.Parallel()
 	name := "TestServicesScale"
 
-	defaultHeaders := map[string]string{"User-Agent": "engine-api-cli-1.0"}
-	cli, err := client.NewClient("unix:///var/run/docker.sock", "v1.22", nil, defaultHeaders)
+	cli, err := GetClient()
 
 	// create a new service
 	serviceSpec := CannedServiceSpec(name, 1, name)
