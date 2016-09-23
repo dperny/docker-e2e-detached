@@ -29,10 +29,10 @@ func TestClusterNodeAvailable(t *testing.T) {
 				leaders = leaders + 1
 			}
 			// check that all managers are reachable
-			assert.Equal(t, node.ManagerStatus.Reachability, swarm.ReachabilityReachable)
+			assert.Equal(t, swarm.ReachabilityReachable, node.ManagerStatus.Reachability, "node: %v", node.ID)
 		}
 		// check that all nodes are ready
-		assert.Equal(t, node.Status.State, swarm.NodeStateReady)
+		assert.Equal(t, swarm.NodeStateReady, node.Status.State, "node: %v", node.ID)
 	}
 
 	// covers both the case where there is no leader (more likely)
