@@ -82,7 +82,7 @@ func TestServicesScale(t *testing.T) {
 			// get all of the tasks for the service
 			tasks, err := GetServiceTasks(ctx, cli, service.ID)
 			if err != nil {
-				return err
+				return errors.Wrap(err, "failed to get service tasks")
 			}
 			// check for correct number of tasks
 			if t := len(tasks); t != replicas {

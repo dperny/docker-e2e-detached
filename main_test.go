@@ -5,9 +5,6 @@ import (
 	"flag"
 	"os"
 	"testing"
-
-	// Engine API
-	"github.com/docker/docker/client"
 )
 
 func TestMain(m *testing.M) {
@@ -15,7 +12,7 @@ func TestMain(m *testing.M) {
 	flag.Parse()
 
 	// we need a client
-	cli, err := client.NewClient()
+	cli, err := GetClient()
 	if err != nil {
 		os.Exit(1)
 	}
