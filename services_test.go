@@ -3,18 +3,14 @@ package dockere2e
 import (
 	// basic imports
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
 	// assertions are nice, let's do more of those
 	"github.com/stretchr/testify/assert"
-	// errors gives us Wrap which is really useful
-	"github.com/pkg/errors"
 
 	// Engine API imports for talking to the docker engine
 	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/swarm"
 )
 
 func TestServicesList(t *testing.T) {
@@ -77,27 +73,7 @@ func TestServicesScale(t *testing.T) {
 	// little generator to create scaling tests
 	// welcome to closure hell
 	// TODO(dperny) abstract this into a standalone function?
-	scaleCheck := func(ctx context.Context, replicas int) func() error {
-		return func() error {
-			// get all of the tasks for the service
-			tasks, err := GetServiceTasks(ctx, cli, service.ID)
-			if err != nil {
-				return errors.Wrap(err, "failed to get service tasks")
-			}
-			// check for correct number of tasks
-			if t := len(tasks); t != replicas {
-				return fmt.Errorf("wrong number of tasks, got %v expected %v", t, replicas)
-			}
-			// verify that all tasks are in the RUNNING state
-			for _, task := range tasks {
-				if task.Status.State != swarm.TaskStateRunning {
-					return errors.New("a task is not yet running")
-				}
-			}
-			// if all of the above checks out, service has converged
-			return nil
-		}
-	}
+	scaleCheck := ScaleCheck(service.ID, cli)
 
 	// check that it converges to 1 replica
 	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)

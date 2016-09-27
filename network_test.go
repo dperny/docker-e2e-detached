@@ -56,26 +56,8 @@ func TestNetworkExternalLb(t *testing.T) {
 
 	// now make sure the service comes up
 	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
-	err = WaitForConverge(ctx, 1*time.Second, func() error {
-		// TODO(dperny): we use a similar function in basic_test/TestServicesScale.
-		// should we break it out into a helper function?
-		tasks, err := GetServiceTasks(ctx, cli, service.ID)
-		if err != nil {
-			return err
-		}
-
-		// check for correct number of tasks
-		if t := len(tasks); t != replicas {
-			return fmt.Errorf("wrong number of tasks, got %v expected %v", t, replicas)
-		}
-		// verify all tasks in running state
-		for _, task := range tasks {
-			if task.Status.State != swarm.TaskStateRunning {
-				return fmt.Errorf("a task is not yet running")
-			}
-		}
-		return nil
-	})
+	scaleCheck := ScaleCheck(service.ID, cli)
+	err = WaitForConverge(ctx, 1*time.Second, scaleCheck(ctx, 3))
 	assert.NoError(t, err)
 
 	// create a context, and also grab the cancelfunc
@@ -114,8 +96,8 @@ func TestNetworkExternalLb(t *testing.T) {
 					// lock the mutex to synchronize access to the map
 					mu.Lock()
 					defer mu.Unlock()
-					tr := &http.Transport{timeout: time.Duration(5 * time.Second)}
-					client := &http.Client{Transport: tr}
+					tr := &http.Transport{}
+					client := &http.Client{Transport: tr, Timeout: time.Duration(5 * time.Second)}
 
 					// poll the endpoint
 					// TODO(dperny): this string concat is probably Bad
