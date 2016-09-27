@@ -139,6 +139,33 @@ func GetTestFilter(labels ...string) filters.Args {
 	return filterArgs
 }
 
+// ScaleCheck returns a generator for scale checking functions. Pass in the
+// service and client once to get the scale checker generator. Pass the context
+// and replicas to that to get a scale checker
+func ScaleCheck(serviceID string, cli *client.Client) func(context.Context, int) func() error {
+	return func(ctx context.Context, replicas int) func() error {
+		return func() error {
+			// get all of the tasks for the service
+			tasks, err := GetServiceTasks(ctx, cli, serviceID)
+			if err != nil {
+				return errors.Wrap(err, "failed to get service tasks")
+			}
+			// check for correct number of tasks
+			if t := len(tasks); t != replicas {
+				return errors.Errorf("wrong number of tasks, got %v expected %v", t, replicas)
+			}
+			// verify that all tasks are in the RUNNING state
+			for _, task := range tasks {
+				if task.Status.State != swarm.TaskStateRunning {
+					return errors.New("a task is not yet running")
+				}
+			}
+			// if all of the above checks out, service has converged
+			return nil
+		}
+	}
+}
+
 // ServiceScale scales a service to the provided number
 /*
 func ServiceScale(ctx context.Context, cli *client.Client, serviceID string, replicas uint64) (serviceID, error) {
