@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -91,6 +92,13 @@ func TestNetworkExternalLb(t *testing.T) {
 	containers := make(map[string]int)
 	// create a mutex to synchronize access to this map
 	mu := new(sync.Mutex)
+	// get the network endpoint we're going to hit
+	var endpoint string
+	if e := os.Getenv("DOCKER_E2E_ENDPOINT"); e != "" {
+		endpoint = e
+	} else {
+		endpoint = "127.0.0.1"
+	}
 
 	// first we need a function to poll containers, and let it run
 	go func() {
@@ -106,11 +114,12 @@ func TestNetworkExternalLb(t *testing.T) {
 					// lock the mutex to synchronize access to the map
 					mu.Lock()
 					defer mu.Unlock()
-					tr := &http.Transport{}
+					tr := &http.Transport{timeout: time.Duration(5 * time.Second)}
 					client := &http.Client{Transport: tr}
 
 					// poll the endpoint
-					resp, err := client.Get("http://127.0.0.1:8080")
+					// TODO(dperny): this string concat is probably Bad
+					resp, err := client.Get("http://" + endpoint + ":8080")
 					if err != nil {
 						// TODO(dperny) properly handle error
 						// fmt.Printf("error: %v", err)
