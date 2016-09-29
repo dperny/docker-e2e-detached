@@ -8,9 +8,13 @@ import (
 
 	// assertions are nice, let's do more of those
 	"github.com/stretchr/testify/assert"
+	// errors for better errors
+	// (we don't just use testing errors b/c WaitForConverge doesn't use them)
+	"github.com/pkg/errors"
 
 	// Engine API imports for talking to the docker engine
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/swarm"
 )
 
 func TestServicesList(t *testing.T) {
@@ -64,15 +68,14 @@ func TestServicesScale(t *testing.T) {
 	name := "TestServicesScale"
 
 	cli, err := GetClient()
+	assert.NoError(t, err, "could not create client")
 
 	// create a new service
 	serviceSpec := CannedServiceSpec(name, 1, name)
 	service, err := cli.ServiceCreate(context.Background(), serviceSpec, types.ServiceCreateOptions{})
 	assert.NoError(t, err, "error creating service")
 
-	// little generator to create scaling tests
-	// welcome to closure hell
-	// TODO(dperny) abstract this into a standalone function?
+	// get a new scale check generator
 	scaleCheck := ScaleCheck(service.ID, cli)
 
 	// check that it converges to 1 replica
@@ -94,6 +97,81 @@ func TestServicesScale(t *testing.T) {
 	ctx, _ = context.WithTimeout(context.Background(), 30*time.Second)
 	err = WaitForConverge(ctx, 2*time.Second, scaleCheck(ctx, 3))
 	assert.NoError(t, err)
+
+	// clean up after
+	CleanTestServices(context.Background(), cli, name)
+}
+
+func TestServicesRollingUpdateSucceed(t *testing.T) {
+	// TODO(dperny): this test sucks and is a hack, make it better
+	t.Parallel()
+	name := "TestServicesRollingUpdateSucceed"
+
+	// TODO(dperny): come up with a function for the next 9 lines? i use it over and over
+	// get a client
+	cli, err := GetClient()
+	assert.NoError(t, err, "could not create client")
+
+	// create a service, 6 replicas
+	serviceSpec := CannedServiceSpec(name, 6, name)
+	service, err := cli.ServiceCreate(context.Background(), serviceSpec, types.ServiceCreateOptions{})
+	assert.NoError(t, err, "error creating service")
+
+	// new scale check generator
+	scaleCheck := ScaleCheck(service.ID, cli)
+
+	// create a context for converge timeout
+	ctx, _ := context.WithTimeout(context.Background(), 60*time.Second)
+	// wait until we've converged all 6 replicas to running state
+	err = WaitForConverge(ctx, 500*time.Millisecond, scaleCheck(ctx, 6))
+	assert.NoError(t, err)
+
+	// now, update the service to a new image
+	// get the full service spec from the cluster
+	full, _, err := cli.ServiceInspectWithRaw(context.Background(), service.ID)
+	// set a new image
+	full.Spec.TaskTemplate.ContainerSpec.Image = "alpine"
+	full.Spec.TaskTemplate.ContainerSpec.Command = []string{"ping", "localhost"}
+	// and set update parameters for 2 at a time, 5 seconds between them
+	full.Spec.UpdateConfig = &swarm.UpdateConfig{
+		Parallelism: 2,
+		Delay:       5 * time.Second,
+	}
+	// TODO(dperny): segfaults if done like this. is it because updateconfig doesn't exist?
+	// full.Spec.UpdateConfig.Parallelism = 2
+	// full.Spec.UpdateConfig.Delay = 5 * time.Second
+	err = cli.ServiceUpdate(context.Background(), service.ID, full.Meta.Version, full.Spec, types.ServiceUpdateOptions{})
+	assert.NoError(t, err)
+
+	// we should see updates in 2s, 3 separate sets
+	for i := 2; i <= 6; i = i + 2 {
+		// 5 second timeout because after 5 seconds, the tasks will roll over
+		ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
+		err = WaitForConverge(ctx, 500*time.Millisecond, func() error {
+			// get the task list, check for errors
+			tasks, err := GetServiceTasks(context.Background(), cli, service.ID)
+			if err != nil {
+				return err
+			}
+			if l := len(tasks); l != 6 {
+				return errors.Errorf("expected %v tasks got %v", 6, l)
+			}
+			// go through the tasks, counting the updated ones
+			updated := 0
+			for _, task := range tasks {
+				if task.Spec.ContainerSpec.Image == "alpine" && task.Status.State == swarm.TaskStateRunning {
+					updated = updated + 1
+				}
+			}
+			// check that we have the same number of updated tasks that we should
+			if updated != i {
+				return errors.Errorf("expected %v tasks updated at this stage, got %v", i, updated)
+			}
+			return nil
+		})
+		// check at each stage for convergence errors
+		assert.NoError(t, err)
+	}
 
 	// clean up after
 	CleanTestServices(context.Background(), cli, name)
