@@ -56,8 +56,7 @@ func CannedServiceSpec(name string, replicas uint64, labels ...string) swarm.Ser
 		},
 		TaskTemplate: swarm.TaskSpec{
 			ContainerSpec: swarm.ContainerSpec{
-				Image:   "alpine",
-				Command: []string{"ping", "localhost"},
+				Image: "nginx",
 			},
 		},
 		Mode: swarm.ServiceMode{Replicated: &swarm.ReplicatedService{Replicas: &replicas}},
@@ -122,6 +121,7 @@ func GetServiceTasks(ctx context.Context, cli *client.Client, serviceID string) 
 	filterArgs := GetTestFilter()
 	// all of the tasks that we want to be running
 	filterArgs.Add("desired-state", "running")
+	filterArgs.Add("desired-state", "ready")
 	// on the service we're requesting
 	filterArgs.Add("service", serviceID)
 	return cli.TaskList(ctx, types.TaskListOptions{Filter: filterArgs})
