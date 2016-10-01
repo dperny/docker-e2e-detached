@@ -1,0 +1,11 @@
+environment:
+    template: https://docker-for-aws.s3.amazonaws.com/aws/nightly/latest.json
+    ssh_keyname: swarm
+    managers: 3
+    workers: 5
+    instance_type: t2.micro
+commands:
+    - docker version
+    - docker info
+    - docker pull dockerswarm/e2e
+    - docker run -v /var/run/docker.sock:/var/run/docker.sock --net=host dockerswarm/e2e
