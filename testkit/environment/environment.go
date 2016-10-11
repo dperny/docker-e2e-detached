@@ -1,4 +1,4 @@
-package main
+package environment
 
 import (
 	"io"
@@ -19,39 +19,49 @@ import (
 )
 
 // Purge deletes stacks older than `ttl`
-func Purge(sess *session.Session, ttl time.Duration) {
+func Purge(sess *session.Session, ttl time.Duration) error {
 	cf := cloudformation.New(sess)
 
-	resp, err := cf.ListStacks(&cloudformation.ListStacksInput{})
-	if err != nil {
-		panic(err)
-	}
-	for _, ss := range resp.StackSummaries {
-		// Skip stacks that don't belong to us.
-		if !strings.HasPrefix(*ss.StackName, "docker-e2e-") {
-			continue
-		}
-
-		// No point in deleting already deleted stacks.
-		if *ss.StackStatus == "DELETE_COMPLETE" {
-			continue
-		}
-
-		// Skip stacks that haven't yet expired (recently created)
-		creation := *ss.CreationTime
-		expiration := creation.Add(ttl)
-		if expiration.After(time.Now().UTC()) {
-			logrus.Warnf("Skipping %s (created %v ago)", *ss.StackName, time.Now().UTC().Sub(creation))
-			continue
-		}
-
-		logrus.Infof("Cleaning up %s (created %v ago)", *ss.StackName, time.Now().UTC().Sub(creation))
-		_, err = cf.DeleteStack(&cloudformation.DeleteStackInput{
-			StackName: ss.StackId,
-		})
+	input := &cloudformation.ListStacksInput{}
+	for {
+		resp, err := cf.ListStacks(input)
 		if err != nil {
-			logrus.Errorf("Failed to delete %s: %v", *ss.StackName, err)
+			return err
 		}
+		for _, ss := range resp.StackSummaries {
+			// Skip stacks that don't belong to us.
+			// TODO(aluzzardi): Rather than checking the name we should check tags.
+			if !strings.HasPrefix(*ss.StackName, "docker-e2e-") {
+				continue
+			}
+
+			// No point in deleting already deleted stacks.
+			if *ss.StackStatus == "DELETE_COMPLETE" || *ss.StackStatus == "DELETE_IN_PROGRESS" {
+				continue
+			}
+
+			// Skip stacks that haven't yet expired (recently created)
+			creation := *ss.CreationTime
+			expiration := creation.Add(ttl)
+			if expiration.After(time.Now().UTC()) {
+				logrus.Warnf("Skipping %s (created %v ago)", *ss.StackName, time.Now().UTC().Sub(creation))
+				continue
+			}
+
+			logrus.Infof("Cleaning up %s (created %v ago)", *ss.StackName, time.Now().UTC().Sub(creation))
+			_, err = cf.DeleteStack(&cloudformation.DeleteStackInput{
+				StackName: ss.StackId,
+			})
+			if err != nil {
+				logrus.Errorf("Failed to delete %s: %v", *ss.StackName, err)
+			}
+		}
+
+		if resp.NextToken == nil {
+			return nil
+		}
+
+		input.NextToken = resp.NextToken
 	}
 }
 
@@ -61,7 +71,7 @@ type Environment struct {
 	client *ssh.Client
 }
 
-func NewEnvironment(id string, sess *session.Session) *Environment {
+func New(id string, sess *session.Session) *Environment {
 	return &Environment{
 		id: id,
 		cf: cloudformation.New(sess),
@@ -156,10 +166,22 @@ func (c *Environment) Run(cmd string) error {
 	go io.Copy(os.Stdout, stdout)
 	go io.Copy(os.Stderr, stderr)
 
-	return session.Run(cmd)
+	logrus.Infof("$ %s", cmd)
+
+	now := time.Now()
+	err = session.Run(cmd)
+	duration := time.Since(now)
+
+	if err != nil {
+		logrus.Errorf("==> \"%s\" failed after %v: %s", cmd, duration, err)
+		return err
+	}
+
+	logrus.Infof("==> \"%s\" completed in %v", cmd, duration)
+	return nil
 }
 
-type EnvironmentConfig struct {
+type Config struct {
 	Template string `yaml:"template,omitempty"`
 
 	SSHKeyName string `yaml:"ssh_keyname,omitempty"`
@@ -170,12 +192,14 @@ type EnvironmentConfig struct {
 	InstanceType string `yaml:"instance_type,omitempty"`
 }
 
-func Provision(sess *session.Session, name string, config *EnvironmentConfig) (*Environment, error) {
+func Provision(sess *session.Session, name string, config *Config) (*Environment, error) {
 	cf := cloudformation.New(sess)
 
 	stack := cloudformation.CreateStackInput{
-		StackName:   aws.String(name),
-		Tags:        []*cloudformation.Tag{{Key: aws.String("docker"), Value: aws.String("e2e")}},
+		StackName: aws.String(name),
+		Tags: []*cloudformation.Tag{
+			{Key: aws.String("docker"), Value: aws.String("e2e")},
+		},
 		TemplateURL: aws.String(config.Template),
 		Capabilities: []*string{
 			aws.String("CAPABILITY_IAM"),
@@ -216,5 +240,5 @@ func Provision(sess *session.Session, name string, config *EnvironmentConfig) (*
 		return nil, err
 	}
 
-	return NewEnvironment(*output.StackId, sess), nil
+	return New(*output.StackId, sess), nil
 }
