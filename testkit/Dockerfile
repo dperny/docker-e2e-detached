@@ -3,7 +3,8 @@ FROM golang:1.7-alpine
 RUN apk add --update \
 		git \
 		&& rm -rf /var/cache/apk/*
-RUN mkdir -p /go/src/github.com/docker/docker-e2e/testkit
+RUN mkdir -p /go/src/github.com/docker/docker-e2e/testkit && \
+	mkdir -p /root/.ssh
 WORKDIR /go/src/github.com/docker/docker-e2e/testkit
 
 COPY . /go/src/github.com/docker/docker-e2e/testkit
