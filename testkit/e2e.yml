@@ -1,6 +1,6 @@
 environment:
     template: https://docker-for-aws.s3.amazonaws.com/aws/nightly/latest.json
-    ssh_keyname: swarm
+    ssh_keyname: docker-qa
     managers: 3
     workers: 5
     instance_type: t2.micro
