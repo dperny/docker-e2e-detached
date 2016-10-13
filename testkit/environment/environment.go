@@ -107,35 +107,56 @@ func (c *Environment) sshEndpoint() (string, error) {
 	return "", errors.New("unable to retrieve SSH endpoint")
 }
 
+func (c *Environment) loadSSHKeys() (ssh.AuthMethod, error) {
+	usr, err := user.Current()
+	if err != nil {
+		return nil, err
+	}
+
+	keyDir := filepath.Join(usr.HomeDir, "/.ssh/")
+	keys, err := ioutil.ReadDir(keyDir)
+	if err != nil {
+		return nil, err
+	}
+
+	signers := []ssh.Signer{}
+	for _, f := range keys {
+		keyPath := filepath.Join(keyDir, f.Name())
+		key, err := ioutil.ReadFile(keyPath)
+		if err != nil {
+			continue
+		}
+		signer, err := ssh.ParsePrivateKey(key)
+		if err != nil {
+			continue
+		}
+		signers = append(signers, signer)
+		logrus.Infof("Loaded %s (%s)", keyPath, signer.PublicKey().Type())
+	}
+
+	return ssh.PublicKeys(signers...), nil
+}
+
 func (c *Environment) Connect() error {
 	endpoint, err := c.sshEndpoint()
 	if err != nil {
 		return err
 	}
 
-	usr, err := user.Current()
+	auth, err := c.loadSSHKeys()
 	if err != nil {
 		return err
-	}
-
-	key, err := ioutil.ReadFile(filepath.Join(usr.HomeDir, "/.ssh/swarm.pem"))
-	if err != nil {
-		return errors.Wrap(err, "unable to read private key")
-	}
-
-	signer, err := ssh.ParsePrivateKey(key)
-	if err != nil {
-		return errors.Wrap(err, "unable to parse private key")
 	}
 
 	conn, err := ssh.Dial("tcp", endpoint,
 		&ssh.ClientConfig{
 			User: "docker",
 			Auth: []ssh.AuthMethod{
-				ssh.PublicKeys(signer),
+				auth,
 			},
 		},
 	)
+
 	if err != nil {
 		return err
 	}
