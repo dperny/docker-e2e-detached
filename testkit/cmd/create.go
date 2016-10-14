@@ -23,13 +23,10 @@ var createCmd = &cobra.Command{
 			return err
 		}
 
-		var (
-			env *environment.Environment
-		)
 		for r := 0; r < 100; r++ {
 			t := time.Now()
 			name := fmt.Sprintf("docker-e2e-%d%02d%02d-%d", t.Year(), t.Month(), t.Day(), r)
-			env, err = environment.Provision(newSession(), name, config.Environment)
+			_, err = environment.Provision(newSession(), name, config.Environment)
 			if err != nil {
 				// Try with another name.
 				if strings.Contains(err.Error(), "AlreadyExistsException") {
@@ -40,7 +37,6 @@ var createCmd = &cobra.Command{
 			break
 		}
 
-		fmt.Println(env)
 		return nil
 	},
 }
